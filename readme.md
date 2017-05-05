@@ -1,7 +1,7 @@
 项目目录介绍.
 
 >
-
+```
 ├── readme.md                   #readme
 ├── requirements.txt            #pip install安装依赖项
 └── src                         #源代码目录
@@ -26,5 +26,6 @@
     │   ├── __init__.py
     │   ├── test_xxx.py
     └── utils.py                #自定义工具类
+``` 
 
 Enjoy it!
