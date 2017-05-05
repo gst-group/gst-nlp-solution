@@ -1,56 +1,37 @@
 # -*- coding: utf-8 -*-
 
-import re    
-#import string
-import jieba  
-from sklearn.cross_validation import train_test_split
-jieba.load_userdict("D:\\python_bag\\base_data\\userdict_insurance.txt") 
 
-path = 'D:\\python_bag\\base_data'
-stopwords = {}.fromkeys([line.rstrip() for line in open(path+'\\stop_word_my.txt')]) #fromkeys字典                                   
+import jieba
+from sklearn.cross_validation import train_test_split
+import os
+import uuid
+
+# declare paths
+CURRENT_FILE_PATH = os.path.dirname(__file__)
+ASSETS_PATH = os.path.join(CURRENT_FILE_PATH, 'assets')
+DATA_PATH = os.path.join(CURRENT_FILE_PATH, 'data')
+OUTPUT_PATH = os.path.join(CURRENT_FILE_PATH, 'output')
+USER_DICT_INSURANCE_PATH = os.path.join(ASSETS_PATH, 'userdict_insurance.txt')
+STOP_WORDS_PATH = os.path.join(ASSETS_PATH, 'stop_word_my.txt')
+TRAIN_DATA_PATH = os.path.join(DATA_PATH, 'poc_train_0424.csv') #training data
+
+jieba.load_userdict(USER_DICT_INSURANCE_PATH)
+stopwords = {}.fromkeys([line.rstrip() for line in open(STOP_WORDS_PATH)]) #fromkeys字典
 filename_list = []  
-all_words = {}   # 全词库 {'key':value }  
+all_words = {}   # 全词库 {'key':value }
+
 #########################  
 #    分词，创建词库      #  
 #########################
 import pandas as pd
 import numpy as np
-#words = pd.read_csv('D:\\python_bag\\pingan_jinfu\\data\\pingan_train_pos.csv',index_col=False, dtype={'level2': np.int64},)
-#words= pd.read_csv('D:\\python_bag\\word2ve\\data\\mysay_train3.csv',index_col=False, dtype={'level2': np.int32})
-words= pd.read_csv('D:\\python_bag\\pingan_jinfu\\poc_test\\poc_train_0427.csv',index_col=False)
-#words = pd.read_csv(path + '\\mysay_train1.csv',index_col=False, dtype={'level2': np.int64},)
-category_list = []  
+
+words= pd.read_csv(TRAIN_DATA_PATH, index_col=False)
+category_list = []
 category_list = words['level']
 raw_word_list = words['text'] 
 
-#分词函数1,包含去停用词
-def stopWord(words):
-    words_list = []
-    for contents in words:
-        wordsList = []  
-        contents = re.sub(r'\s+','',contents) # trans 多空格 to 空格  
-        contents = re.sub(r'\n','',contents)  # trans 换行 to 空格  
-        contents = re.sub(r'\t','',contents)  # trans Tab to 空格    
-        for seg in jieba.cut(contents,cut_all=False):  
-            seg = seg.encode('utf8')  
-            if seg not in stopwords:           # remove 停用词  
-                if seg!=' ':                   # remove 空格  
-                    wordsList.append(seg)      # create 文件词列表  
-        file_string = ' '.join(wordsList)
-        #print  file_string             
-        words_list.append(file_string)
-    return words_list
 
-#分词函数2，不去停用词
-def textClean(words):
-    words_list = []
-    for contents in words:
-        contents = re.sub(r'\s+','',contents) # trans 多空格 to 空格  
-        contents = re.sub(r'\n','',contents)  # trans 换行 to 空格  
-        contents = re.sub(r'\t','',contents)  # trans Tab to 空格 
-        words_list.append(contents)
-    return words_list
-    
 #去停用词时候函数        
 #words_cut_list = stopWord(raw_word_list )       
 #words_cut_list = textClean(raw_word_list )
@@ -66,7 +47,6 @@ transformer = TfidfTransformer()#该类会统计每个词语的tf-idf权值
 fre_matrix = freWord.fit_transform(words_cut_list)#fit_transform是将文本转为词频矩阵    
 tfidf = transformer.fit_transform(fre_matrix)#第一个fit_transform是计算tf-idf
 
-import pandas as pd  
 feature_names = freWord.get_feature_names()           # 特征名  #获取词袋模型中的所有词语
 freWordVector_df = pd.DataFrame(fre_matrix.toarray()) # 全词库 词频 向量矩阵  
 tfidf_df = pd.DataFrame(tfidf.toarray())  # tfidf值矩阵
@@ -74,20 +54,18 @@ tfidf_df = pd.DataFrame(tfidf.toarray())  # tfidf值矩阵
 print tfidf_df.shape
 
 
-# tf-idf 筛选  
-#tfidf_sx_featuresindex = tfidf_df.sum(axis=0).sort_values(ascending=False)[:2000].index  
-#print len(tfidf_sx_featuresindex)  #tfidf提取
-tfidf_sx_features_index = freWordVector_df.sum(axis=0).sort_values(ascending=False)[:3500].index 
+# tf-idf 筛选
+tfidf_filter_features_index = freWordVector_df.sum(axis=0).sort_values(ascending=False)[:3500].index
+freWord_tfsx_df = freWordVector_df.ix[:, tfidf_filter_features_index] # tfidf法筛选后的词向量矩阵
+df_columns = pd.Series(feature_names)[tfidf_filter_features_index] #分词列表头
 
-freWord_tfsx_df = freWordVector_df.ix[:,tfidf_sx_features_index] # tfidf法筛选后的词向量矩阵  
-#print freWord_tfsx_df
-df_columns = pd.Series(feature_names)[tfidf_sx_features_index] #分词列表头
 #print  df_columns
 print df_columns.shape  
 
 tfidf_df_1 = freWord_tfsx_df
-tfidf_df_1.columns = df_columns  
-from sklearn import preprocessing  
+tfidf_df_1.columns = df_columns
+
+from sklearn import preprocessing
 le = preprocessing.LabelEncoder()#标签编码（Label encoding）
 #tfidf_df_1['label'] = le.fit_transform(category_list)
 #label = le.fit_transform(category_list)
@@ -98,6 +76,7 @@ label = category_list
 x_train, x_test, y_train, y_test = train_test_split(tfidf_df_1,label, test_size = 0.2)   
 index_test = x_test.index
 text_test = words['text'][index_test]
+
 #sizes = 5800
 #x_train, x_test =tfidf_df_1[:sizes],tfidf_df_1[(sizes):-1]
 #y_train, y_test =label[:sizes],label[(sizes):-1] 
@@ -121,8 +100,8 @@ from sklearn.naive_bayes import MultinomialNB
 clf = MultinomialNB().fit(x_train, y_train)  
 doc_class_predicted = clf.predict(x_test)  
 pre_NB = clf.predict(tfidf_df_1)
-  
-print(np.mean(doc_class_predicted == y_test)) 
+print('调用MultinomialNB分类器')
+print(np.mean(doc_class_predicted == y_test))
 
 
 # 逻辑回归
@@ -132,7 +111,8 @@ clf = clf.fit(x_train, y_train)
 doc_class_predict_LR = clf.predict(x_test) 
 pre_lr = clf.predict(tfidf_df_1)
 probs_lr = clf.predict_proba(tfidf_df_1).max(axis=1)
-  
+
+print('调用MultinomialNB分类器')
 print(np.mean(doc_class_predict_LR == y_test))
 
 sum_pre = words[['num','text','level']]
@@ -144,6 +124,8 @@ sum_pre['probs_lr'] = probs_lr
 print(np.mean(pre_NB == words['level']))
 print(np.mean(pre_lr == words['level']))
 
+sum_pre_result_path = os.path.join(OUTPUT_PATH, 'result_sum_pre_' + str(uuid.uuid4()) + '.csv')
+sum_pre.to_csv(sum_pre_result_path, encoding='utf-8')
 #sum_pre.to_csv('D:\\python_bag\\pingan_jinfu\\poc_test\\pre_word_sum0425_1.csv',encoding='utf-8')
 
 #测试汇总
@@ -151,7 +133,8 @@ pre_word_test =pd.DataFrame({'test_text':text_test,'level':y_test})
 #pre_word_test['predict_FR']=predict
 pre_word_test['predict_NB']=doc_class_predicted
 pre_word_test['predict_FR']=doc_class_predict_LR
-
+pre_word_test_result_path = os.path.join(OUTPUT_PATH, 'pre_word_test_' + str(uuid.uuid4()) + '.csv')
+pre_word_test.to_csv(pre_word_test, encoding='utf-8')
 #pre_word_test.to_csv('D:\\python_bag\\pingan_jinfu\\poc_test\\pre_word_test0425_1.csv',encoding='utf-8')
 
 #筛选特征
